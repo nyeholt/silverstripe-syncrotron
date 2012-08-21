@@ -11,12 +11,16 @@ class SyncrotronService {
 	
 	const SERVICE_URL = 'jsonservice/Syncrotron/listUpdates';
 	
+	public static $dependencies = array(
+		'dataService'		=> '%$DataService',
+	);
+	
 	/**
 	 * Do we require strict permission checking? 
 	 * 
 	 * If set to true, then the user requires the 'Syncro' permission to the object to be able to display 
 	 * the item
-	 *
+	 * 
 	 * @var boolean
 	 */
 	private $strictAccess = true;
@@ -34,12 +38,19 @@ class SyncrotronService {
 	 * 
 	 * @var type 
 	 */
-	private $filterDate = 'UpdatedUTC';
-	
+	private $filterDate = 'LastEditedUTC';
+
 	/**
 	 * @var DataService
 	 */
-	private $dataService;
+	public $dataService;
+	
+	/**
+	 * Do we create new members who own data in the remote system but don't exist in this system yet? 
+	 * 
+	 * @var boolean
+	 */
+	public $createMembers = true;
 	
 	/**
 	 * Logger 
@@ -48,7 +59,6 @@ class SyncrotronService {
 	private $log;
 	
 	public function __construct() {
-		$this->dataService = singleton('DataService');
 		$this->log = new KLogger(SYNCROTRON_LOGDIR, KLogger::INFO);
 	}
 
@@ -110,7 +120,10 @@ class SyncrotronService {
 
 		$allUpdates = array();
 		foreach ($typesToSync as $type) {
-			$objects = $this->dataService->getAll($type, $filter, '"LastEditedUTC" ASC', "", "", "DataObjectSet", $requiredPerm);
+			if ($type == 'SyncroTestObject') {
+				continue;
+			}
+			$objects = $this->dataService->getAll($type, $filter, '"LastEditedUTC" ASC', "", "", $requiredPerm);
 			if ($objects && $objects->count()) {
 				foreach ($objects as $object) {
 					$toSync = $object->forSyncro();
@@ -225,7 +238,7 @@ class SyncrotronService {
 				}
 			} else {
 				$cls = $object->ClassName;
-				$existing = new $cls;
+				$existing = $cls::create();
 				if (isset($object->Title)) {
 					$existing->Title = $object->Title;
 				}
@@ -236,6 +249,10 @@ class SyncrotronService {
 				$existing->MasterNode = $object->MasterNode;
 				$existing->OriginalID = $object->OriginalID;
 				$existing->CreatedUTC = $object->CreatedUTC;
+
+				// need to write again because further syncro will need to lookup these values if there are circular
+				// refereces. 
+				$existing->write();
 			}
 
 			$existing->LastEditedUTC = $object->LastEditedUTC;
@@ -249,7 +266,7 @@ class SyncrotronService {
 			}
 		}
 	}
-	
+
 	/**
 	 * Converts an object into a serialised form used for sending over the wire
 	 * 
@@ -282,11 +299,11 @@ class SyncrotronService {
 		foreach ($hasOne as $name => $type) {
 			// get the object
 			$object = $item->getComponent($name);
-			if ($object && $object->exists()) {
+			if ($object && $object->exists() && $object instanceof Syncroable) {
 				$has_ones[$name] = array('ContentID' => $object->ContentID, 'Type' => $type);
 			}
 		}
-		
+
 		$properties['has_one'] = $has_ones;
 		
 		return $properties;
@@ -312,6 +329,11 @@ class SyncrotronService {
 			$owner = DataObject::get_one('Member', '"Email" = \'' . Convert::raw2sql($object->Restrictable_OwnerEmail) .'\'');
 			if ($owner && $owner->exists()) {
 				$item->OwnerID = $owner->ID;
+			} else if ($this->createMembers) {
+				$member = Member::create();
+				$member->Email = $object->Restrictable_OwnerEmail;
+				$member->write();
+				$item->OwnerID = $member->ID;
 			}
 		}
 

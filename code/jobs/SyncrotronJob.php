@@ -22,7 +22,5 @@ class SyncrotronJob extends AbstractQueuedJob {
 		
 		$this->currentStep = $this->totalSteps;
 		$this->isComplete = true;
-		
-		
 	}
 }

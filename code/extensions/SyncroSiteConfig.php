@@ -4,19 +4,16 @@
  * @author marcus@silverstripe.com.au
  * @license BSD License http://silverstripe.org/bsd-license/
  */
-class SyncroSiteConfig extends DataObjectDecorator {
+class SyncroSiteConfig extends DataExtension {
 
-	public function extraStatics() {
-		return array(
-			'db'		=> array(
-				'SystemID'			=> 'Varchar(128)'
-			)
-		);
-	}
+	public static $db = array(
+		'SystemID'			=> 'Varchar(128)'
+	);
 
 	public function onBeforeWrite() {
 		if (!$this->owner->SystemID) {
-			$this->owner->SystemID = Uuid::get();
+			$uuid = new Uuid();
+			$this->owner->SystemID = $uuid->get();
 		}
 	}
 
@@ -28,7 +25,7 @@ class SyncroSiteConfig extends DataObjectDecorator {
 		return $this->owner->SystemID;
 	}
 	
-	public function updateCMSFields(FieldSet &$fields) {
+	public function updateCMSFields(FieldList $fields) {
 		$fields->addFieldToTab('Root.Syncro', new ReadonlyField('SystemID', _t('Syncro.SYSTEM_ID', 'System Identifier')));
 	}
 }

@@ -13,20 +13,16 @@
  * @author marcus@silverstripe.com.au
  * @license BSD License http://silverstripe.org/bsd-license/
  */
-class SyncroableExtension extends DataObjectDecorator {
+class SyncroableExtension extends DataExtension {
 
-	public function extraStatics() {
-		return array(
-			'db'			=> array(
-				'MasterNode'				=> 'Varchar(128)',
-				'ContentID'					=> 'Varchar(128)',
-				'CreatedUTC'				=> 'SS_Datetime',			// create time on master node
-				'LastEditedUTC'				=> 'SS_Datetime',			// utc last edited time on master node
-				'UpdatedUTC'				=> 'SS_Datetime',			// utc last edited time on any node
-				'OriginalID'				=> 'Int',
-			)
-		);
-	}
+	public static $db = array(
+		'MasterNode'				=> 'Varchar(128)',
+		'ContentID'					=> 'Varchar(128)',
+		'CreatedUTC'				=> 'SS_Datetime',			// create time on master node
+		'LastEditedUTC'				=> 'SS_Datetime',			// utc last edited time on master node
+		'UpdatedUTC'				=> 'SS_Datetime',			// utc last edited time on any node
+		'OriginalID'				=> 'Int',
+	);
 
 	public function onBeforeWrite() {
 		$config = SiteConfig::current_site_config();
@@ -35,7 +31,8 @@ class SyncroableExtension extends DataObjectDecorator {
 		}
 		
 		if (!$this->owner->ContentID) {
-			$this->owner->ContentID = Uuid::get();
+			$uuid = new Uuid();
+			$this->owner->ContentID = $uuid->get();
 		}
 		
 		$nowUTC = gmdate('Y-m-d H:i:s');
@@ -57,7 +54,7 @@ class SyncroableExtension extends DataObjectDecorator {
 		}
 	}
 
-	public function updateFrontendFields(FieldSet $fields) {
+	public function updateFrontendFields(FieldList $fields) {
 		$fields->removeByName('MasterNode');
 		$fields->removeByName('ContentID');
 		$fields->removeByName('OriginalID');
