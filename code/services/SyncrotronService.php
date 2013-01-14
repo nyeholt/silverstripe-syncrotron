@@ -274,8 +274,14 @@ class SyncrotronService {
 	 * converts to a format readable by the unsyncroObject method
 	 * 
 	 * @param DataObject $item 
+	 * @param array $props 
+	 *				the list of properties to convert
+	 * @param array $hasOne
+	 *				the list of has_one relationship names to convert
+	 * @param array $manies
+	 *				the list of many_many relationship items to convert
 	 */
-	public function syncroObject(DataObject $item, $props = null, $hasOne = null) {
+	public function syncroObject(DataObject $item, $props = null, $hasOne = null, $manies = null) {
 		
 		$properties = array();
 		
@@ -306,6 +312,22 @@ class SyncrotronService {
 
 		$properties['has_one'] = $has_ones;
 		
+		$many_many = array();
+		if (!$manies) {
+			$manies = $item::$many_many;
+		}
+		
+		foreach ($manies as $name => $type) {
+			$rel = $item->getComponent($name);
+			foreach ($rel as $object) {
+				if ($object && $object->exists() && $object instanceof Syncroable) {
+					$many_many[$name] = array('ContentID' => $object->ContentID, 'Type' => $type);
+				}
+			}
+		}
+
+		$properties['many_many'] = $many_many;
+
 		return $properties;
 	}
 	
@@ -313,7 +335,9 @@ class SyncrotronService {
 	 * Set properties on an item based on a syncro serialised object
 	 * 
 	 * @param stdClass $object
-	 * @param DataObject $into 
+	 *				the data being unserialised
+	 * @param $item $into 
+	 *				the item to set values on
 	 */
 	public function unsyncroObject($object, $item) {
 		
@@ -343,6 +367,17 @@ class SyncrotronService {
 				if ($object && $object->exists()) {
 					$propName = $name.'ID';
 					$item->$propName = $object->ID;
+				}
+			}
+		}
+
+		if (isset($object->many_many)) {
+			foreach ($object->many_many as $name => $contentProp) {
+				$item->$name()->removeAll();
+
+				$object = DataObject::get_one($contentProp->Type, '"ContentID" = \'' . Convert::raw2sql($contentProp->ContentID) .'\'');
+				if ($object && $object->exists()) {
+					$item->$name()->add($object);
 				}
 			}
 		}
