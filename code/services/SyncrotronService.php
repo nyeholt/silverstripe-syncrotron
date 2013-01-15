@@ -122,16 +122,24 @@ class SyncrotronService {
 			} else {
 				$record = Versioned::get_version($changesetItem->OtherClass, $changesetItem->OtherID, $changesetItem->ContentVersion);
 				$syncd = $this->syncroObject($record);
-				$relInfo = new stdClass();
-				$relInfo->SYNCROREL = true;
-				$relInfo->Type = $record->ClassName;
-				$relInfo->ContentID = $record->ContentID;
-				$relInfo->has_one = $syncd['has_one'];
-				$relInfo->many_many = $syncd['many_many'];
+				$syncd['ClassName'] = $record->ClassName;
+				
+				if (count($syncd['has_one']) || count($syncd['many_many'])) {
+					$relInfo = new stdClass();
+					$relInfo->SYNCROREL = true;
+					$relInfo->Type = $record->ClassName;
+					$relInfo->ContentID = $record->ContentID;
+					$relInfo->MasterNode = SiteConfig::current_site_config()->SystemID;
+					$relInfo->has_one = $syncd['has_one'];
+					$relInfo->many_many = $syncd['many_many'];
+					
+					$update['rels'][] = $relInfo;
+				}
+				
 				unset($syncd['has_one']); unset($syncd['many_many']);
 				
 				$update['changes'][] = $syncd;
-				$update['rels'][] = $relInfo;
+				
 			}
 			
 		}
@@ -142,14 +150,20 @@ class SyncrotronService {
 			$service = new RestfulService($url, -1);
 			$params = array(
 				'token' => $node->APIToken,
-				'changes' => serialize($update['changes']),
-				'deletes' => serialize($update['deletes']),
-				'rels' => serialize($update['rels']),
+				'changes' => Convert::raw2json($update['changes']),
+				'deletes' => Convert::raw2json($update['deletes']),
+				'rels' => Convert::raw2json($update['rels']),
 			);
+			
+			$thing = http_build_query($params);
 
 			$response = $service->request(self::PUSH_URL, 'POST', $params); //, $headers, $curlOptions);
 			if ($response && $response->isError()) {
-				throw new Exception("Failed deploying to $url");
+				$body = $response->getBody();
+				if ($body) {
+					$this->log->logError($body);
+				}
+				throw new Exception("Failed deploying to $url: " . $response->getStatusCode());
 			}
 
 			$body = $response->getBody();
@@ -160,12 +174,13 @@ class SyncrotronService {
 	}
 
 	public function receiveChangeset($changes, $deletes, $rels) {
-		$changes = unserialize($changes);
-		$deletes = unserialize($deletes);
-		$rels = unserialize($rels);
+		$changes = $changes ? Convert::json2obj($changes) : array();
+		$deletes = $deletes ? Convert::json2obj($deletes) : array();
+		$rels = $rels ? Convert::json2obj($rels) : array();
 		
 		if ($changes) {
 			$all = array_merge($changes, $deletes, $rels);
+			$this->processUpdateData($all);
 			return $all;
 		}
 
@@ -277,7 +292,7 @@ class SyncrotronService {
 			}
 		}
 	}
-	
+
 	/**
 	 * Process an array of 
 	 * 
@@ -288,19 +303,21 @@ class SyncrotronService {
 		$updateTime = null;
 		foreach ($data as $item) {
 			$this->processUpdatedObject($item);
-			if ($item->Title) {
+			if (isset($item->Title) && isset($item->ID)) {
 				$this->log->logInfo("Sync'd $item->ClassName #$item->ID '" . $item->Title . "'");
 			} else {
-				$this->log->logInfo("Sync'd $item->ClassName #$item->ID");
+				$this->log->logInfo("Sync'd $item->ContentID");
 			}
-			if ($item->LastEditedUTC || $item->UpdatedUTC) {
-				$timeInt = strtotime($item->LastEditedUTC);
-				if ($timeInt > $updateTime) {
-					$updateTime = $timeInt;
-				}
-				$timeInt = strtotime($item->UpdatedUTC);
-				if ($timeInt > $updateTime) {
-					$updateTime = $timeInt;
+			if (isset($item->LastEditedUTC) && isset($item->UpdatedUTC)) {
+				if ($item->LastEditedUTC || $item->UpdatedUTC) {
+					$timeInt = strtotime($item->LastEditedUTC);
+					if ($timeInt > $updateTime) {
+						$updateTime = $timeInt;
+					}
+					$timeInt = strtotime($item->UpdatedUTC);
+					if ($timeInt > $updateTime) {
+						$updateTime = $timeInt;
+					}
 				}
 			}
 		}
@@ -317,13 +334,15 @@ class SyncrotronService {
 	 * @param type $json 
 	 */
 	public function processUpdatedObject($object) {
-		if ($object->ClassName && $object->ContentID && $object->MasterNode) {
+		if (isset($object->ClassName) && isset($object->ContentID) && isset($object->MasterNode)) {
 			// explicitly use the unchecked call here because we don't want to create a new item if it actually turns 
 			// out that it exists and we just don't have write access to it
 			$existing = DataObject::get_one($object->ClassName, '"ContentID" = \'' . Convert::raw2sql($object->ContentID).'\' AND "MasterNode" = \'' . Convert::raw2sql($object->MasterNode) .'\'');
 			if ($existing && $existing->exists()) {
-				if (!$existing->checkPerm('Write')) {
+				if ($existing->hasMethod('checkPerm') && !$existing->checkPerm('Write')) {
 					// should we throw an error here? 
+					return;
+				} else if (!$existing->canEdit()) {
 					return;
 				}
 			} else {
@@ -346,13 +365,25 @@ class SyncrotronService {
 			}
 
 			$existing->LastEditedUTC = $object->LastEditedUTC;
-			$existing->fromSyncro($object);
+			
+			if ($existing instanceof Syncroable) {
+				$existing->fromSyncro($object);
+			} else {
+				$this->unsyncroObject($object, $existing);
+			}
+			
+			
 			$existing->write();
-		} else if ($object->SYNCRODELETE) {
+		} else if (isset($object->SYNCRODELETE)) {
 			// find and delete relevant item
 			$existing = DataObject::get_one($object->Type, '"ContentID" = \'' . Convert::raw2sql($object->ContentID).'\' AND "MasterNode" = \'' . Convert::raw2sql($object->MasterNode) .'\'');
 			if ($existing) {
 				$existing->delete();
+			}
+		} else if (isset($object->SYNCROREL)) {
+			$existing = DataObject::get_one($object->Type, '"ContentID" = \'' . Convert::raw2sql($object->ContentID).'\' AND "MasterNode" = \'' . Convert::raw2sql($object->MasterNode) .'\'');
+			if ($existing) {
+				$this->unsyncroRelationship($existing, $object);
 			}
 		}
 	}
@@ -395,12 +426,12 @@ class SyncrotronService {
 
 		$has_ones = array();
 		if (!$hasOne) {
-			$hasOne = $item::$has_one;
+			$hasOne = Config::inst()->get(get_class($item), 'has_one');
 		}
 		foreach ($hasOne as $name => $type) {
 			// get the object
 			$object = $item->getComponent($name);
-			if ($object && $object->exists() && $object instanceof Syncroable) {
+			if ($object && $object->exists() && $object->hasExtension('SyncroableExtension')) {
 				$has_ones[$name] = array('ContentID' => $object->ContentID, 'Type' => $type);
 			}
 		}
@@ -409,19 +440,22 @@ class SyncrotronService {
 		
 		$many_many = array();
 		if (!$manies) {
-			$manies = $item::$many_many;
+			$manies = Config::inst()->get(get_class($item), 'many_many');
 		}
 
 		foreach ($manies as $name => $type) {
 			$rel = $item->getManyManyComponents($name);
+			$many_many[$name] = array();
 			foreach ($rel as $object) {
-				if ($object && $object->exists() && $object instanceof Syncroable) {
-					$many_many[$name] = array('ContentID' => $object->ContentID, 'Type' => $type);
+				if ($object && $object->exists() && $object->hasExtension('SyncroableExtension')) {
+					$many_many[$name][] = array('ContentID' => $object->ContentID, 'Type' => $type);
 				}
 			}
 		}
 
 		$properties['many_many'] = $many_many;
+		
+		$item->extend('updateSyncroData', $properties);
 
 		return $properties;
 	}
@@ -435,7 +469,6 @@ class SyncrotronService {
 	 *				the item to set values on
 	 */
 	public function unsyncroObject($object, $item) {
-		
 		foreach ($object as $prop => $val) {
 			if ($prop == 'has_one' || $prop == 'many_many') {
 				continue;
@@ -455,24 +488,37 @@ class SyncrotronService {
 				$item->OwnerID = $member->ID;
 			}
 		}
-
+		
+		$item->extend('onSyncro', $object);
+	}
+	
+	/**
+	 * Un syncronise relationship data for a given object
+	 * 
+	 * @param type $item
+	 * @param type $object
+	 */
+	public function unsyncroRelationship($item, $object) {
+		
 		if (isset($object->has_one)) {
 			foreach ($object->has_one as $name => $contentProp) {
-				$object = DataObject::get_one($contentProp->Type, '"ContentID" = \'' . Convert::raw2sql($contentProp->ContentID) .'\'');
-				if ($object && $object->exists()) {
+				$existing = DataObject::get_one($contentProp->Type, '"ContentID" = \'' . Convert::raw2sql($contentProp->ContentID) .'\'');
+				if ($existing && $existing->exists()) {
 					$propName = $name.'ID';
-					$item->$propName = $object->ID;
+					$item->$propName = $existing->ID;
 				}
 			}
+			$item->write();
 		}
 
 		if (isset($object->many_many)) {
-			foreach ($object->many_many as $name => $contentProp) {
+			foreach ($object->many_many as $name => $relItems) {
 				$item->$name()->removeAll();
-
-				$object = DataObject::get_one($contentProp->Type, '"ContentID" = \'' . Convert::raw2sql($contentProp->ContentID) .'\'');
-				if ($object && $object->exists()) {
-					$item->$name()->add($object);
+				foreach ($relItems as $type => $contentProp) {
+					$existing = DataObject::get_one($contentProp->Type, '"ContentID" = \'' . Convert::raw2sql($contentProp->ContentID) .'\'');
+					if ($existing && $existing->exists()) {
+						$item->$name()->add($existing);
+					}
 				}
 			}
 		}
