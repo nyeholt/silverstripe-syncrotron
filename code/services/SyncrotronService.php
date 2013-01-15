@@ -11,6 +11,8 @@ class SyncrotronService {
 	
 	const SERVICE_URL = 'jsonservice/Syncrotron/listUpdates';
 	
+	const PUSH_URL = '/jsonservice/Syncrotron/receiveChangeset';
+	
 	public static $dependencies = array(
 		'dataService'		=> '%$DataService',
 	);
@@ -70,6 +72,7 @@ class SyncrotronService {
 	public function webEnabledMethods() {
 		return array(
 			'listUpdates'			=> 'GET',
+			'receiveChangeset'		=> 'POST',
 		);
 	}
 	
@@ -90,6 +93,83 @@ class SyncrotronService {
 		if ($d == 'UpdatedUTC' || $d == 'LastEditedUTC') {
 			$this->filterDate = $d;
 		}
+	}
+	
+	/**
+	 * Push a content changeset to a syncro node
+	 * 
+	 * @param ContentChangeset $changeset
+	 * @param RemoteSyncroNode $node
+	 * 
+	 */
+	public function pushChangeset($changeset, $node) {
+		$cs = $changeset->ChangesetItems();
+		
+		$update = array('changes' => array(), 'deletes' => array(), 'rels' => array());
+		foreach ($cs as $changesetItem) {
+			$record = null;
+			// if it's a delete, we create a syncro delete, otherwise get the versioned item
+			if ($changesetItem->ChangeType == 'Draft Deleted') {
+				// find the syncrodelete record
+				$record = DataList::create('SyncroDelete')->filter(array('ContentID' => $changesetItem->OtherContentID))->first();
+				$del = array(
+					'SYNCRODELETE'	=> 'DELETE',
+					'ContentID'		=> $record->ContentID,
+					'Type'			=> $record->Type,
+					'MasterNode'	=> SiteConfig::current_site_config()->SystemID,
+				);
+				$update['deletes'][] = $del;
+			} else {
+				$record = Versioned::get_version($changesetItem->OtherClass, $changesetItem->OtherID, $changesetItem->ContentVersion);
+				$syncd = $this->syncroObject($record);
+				$relInfo = new stdClass();
+				$relInfo->SYNCROREL = true;
+				$relInfo->Type = $record->ClassName;
+				$relInfo->ContentID = $record->ContentID;
+				$relInfo->has_one = $syncd['has_one'];
+				$relInfo->many_many = $syncd['many_many'];
+				unset($syncd['has_one']); unset($syncd['many_many']);
+				
+				$update['changes'][] = $syncd;
+				$update['rels'][] = $relInfo;
+			}
+			
+		}
+
+		if ($update && $node) {
+			
+			$url = $node->NodeURL;
+			$service = new RestfulService($url, -1);
+			$params = array(
+				'token' => $node->APIToken,
+				'changes' => serialize($update['changes']),
+				'deletes' => serialize($update['deletes']),
+				'rels' => serialize($update['rels']),
+			);
+
+			$response = $service->request(self::PUSH_URL, 'POST', $params); //, $headers, $curlOptions);
+			if ($response && $response->isError()) {
+				throw new Exception("Failed deploying to $url");
+			}
+
+			$body = $response->getBody();
+			if ($body) {
+				
+			}
+		}
+	}
+
+	public function receiveChangeset($changes, $deletes, $rels) {
+		$changes = unserialize($changes);
+		$deletes = unserialize($deletes);
+		$rels = unserialize($rels);
+		
+		if ($changes) {
+			$all = array_merge($changes, $deletes, $rels);
+			return $all;
+		}
+
+		return '';
 	}
 
 	/**
@@ -192,32 +272,42 @@ class SyncrotronService {
 				$data = json_decode($response);
 				if ($data && is_array($data->response)) {
 					$this->log->logInfo("Loading " . count($data->response) . " objects from " . $node->NodeURL);
-					$updateTime = null;
-					foreach ($data->response as $item) {
-						$this->processUpdatedObject($item);
-						if ($item->Title) {
-							$this->log->logInfo("Sync'd $item->ClassName #$item->ID '" . $item->Title . "'");
-						} else {
-							$this->log->logInfo("Sync'd $item->ClassName #$item->ID");
-						}
-						if ($item->LastEditedUTC || $item->UpdatedUTC) {
-							$timeInt = strtotime($item->LastEditedUTC);
-							if ($timeInt > $updateTime) {
-								$updateTime = $timeInt;
-							}
-							$timeInt = strtotime($item->UpdatedUTC);
-							if ($timeInt > $updateTime) {
-								$updateTime = $timeInt;
-							}
-						}
-					}
-					
-					if ($updateTime) {
-						$node->LastSync = gmdate('Y-m-d H:i:s');
-						$node->write();
-					}
+					$this->processUpdateData($data->response, $node);
 				}
 			}
+		}
+	}
+	
+	/**
+	 * Process an array of 
+	 * 
+	 * @param array $data
+	 * @param RemoteSyncroNode $node
+	 */
+	protected function processUpdateData($data, $node = null) {
+		$updateTime = null;
+		foreach ($data as $item) {
+			$this->processUpdatedObject($item);
+			if ($item->Title) {
+				$this->log->logInfo("Sync'd $item->ClassName #$item->ID '" . $item->Title . "'");
+			} else {
+				$this->log->logInfo("Sync'd $item->ClassName #$item->ID");
+			}
+			if ($item->LastEditedUTC || $item->UpdatedUTC) {
+				$timeInt = strtotime($item->LastEditedUTC);
+				if ($timeInt > $updateTime) {
+					$updateTime = $timeInt;
+				}
+				$timeInt = strtotime($item->UpdatedUTC);
+				if ($timeInt > $updateTime) {
+					$updateTime = $timeInt;
+				}
+			}
+		}
+
+		if ($updateTime && $node) {
+			$node->LastSync = gmdate('Y-m-d H:i:s');
+			$node->write();
 		}
 	}
 	
@@ -284,9 +374,14 @@ class SyncrotronService {
 	public function syncroObject(DataObject $item, $props = null, $hasOne = null, $manies = null) {
 		
 		$properties = array();
+		$ignore = array('Created', 'ClassName', 'ID', 'Version');
 		
 		if (!$props) {
-			$props = array_keys($item::$db);
+			$props = Config::inst()->get(get_class($item), 'db');
+			foreach ($ignore as $unset) {
+				unset($props[$unset]);
+			}
+			$props = array_keys($props);
 		}
 
 		foreach ($props as $name) {
@@ -316,9 +411,9 @@ class SyncrotronService {
 		if (!$manies) {
 			$manies = $item::$many_many;
 		}
-		
+
 		foreach ($manies as $name => $type) {
-			$rel = $item->getComponent($name);
+			$rel = $item->getManyManyComponents($name);
 			foreach ($rel as $object) {
 				if ($object && $object->exists() && $object instanceof Syncroable) {
 					$many_many[$name] = array('ContentID' => $object->ContentID, 'Type' => $type);
