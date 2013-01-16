@@ -7,6 +7,7 @@
 class RemoteSyncroNode extends DataObject {
 	
 	public static $db = array(
+		'Title'					=> 'Varchar(64)',
 		'RemoteNodeID'			=> 'Varchar(128)',
 		'NodeURL'				=> 'Varchar(128)',
 		'APIToken'				=> 'Varchar(128)',
