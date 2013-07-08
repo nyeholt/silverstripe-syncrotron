@@ -204,6 +204,10 @@ class SyncrotronService {
 		$since = Convert::raw2sql($since);
 		$system = Convert::raw2sql($system);
 		$typesToSync = ClassInfo::implementorsOf('Syncroable');
+		
+		if (count($typesToSync) == 1 && $typesToSync[0] == 'SyncroTestObject') {
+			$typesToSync = array('Page', 'File');
+		}
 
 		// restrict to only those items we have been granted sync rights to
 		$requiredPerm = $this->strictAccess ? 'Syncro' : 'View';
@@ -221,7 +225,12 @@ class SyncrotronService {
 			$objects = $this->dataService->getAll($type, $filter, '"LastEditedUTC" ASC', "", "", $requiredPerm);
 			if ($objects && $objects->count()) {
 				foreach ($objects as $object) {
-					$toSync = $object->forSyncro();
+					if ($object->hasMethod('forSyncro')) {
+						$toSync = $object->forSyncro();
+					} else {
+						$toSync = $this->syncroObject($object);
+					}
+
 					// some that we force
 					// note that UpdatedUTC is not sent as it is always a local node specific date
 					$toSync['MasterNode']		= $object->MasterNode;
