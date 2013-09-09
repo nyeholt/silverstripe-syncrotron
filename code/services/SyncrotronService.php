@@ -149,15 +149,18 @@ class SyncrotronService {
 			$url = $node->NodeURL;
 			$service = new RestfulService($url, -1);
 			$params = array(
-				'token' => $node->APIToken,
-				'changes' => Convert::raw2json($update['changes']),
-				'deletes' => Convert::raw2json($update['deletes']),
-				'rels' => Convert::raw2json($update['rels']),
+				'changes' => $update['changes'],
+				'deletes' => $update['deletes'],
+				'rels' => $update['rels'],
 			);
 			
-			$thing = http_build_query($params);
+			$headers = array(
+				'X-Auth-Token: ' . $node->APIToken,
+				'Content-Type: application/json',
+			);
+			$body = json_encode($params);
 
-			$response = $service->request(self::PUSH_URL, 'POST', $params); //, $headers, $curlOptions);
+			$response = $service->request(self::PUSH_URL, 'POST', $body, $headers); //, $headers, $curlOptions);
 			if ($response && $response->isError()) {
 				$body = $response->getBody();
 				if ($body) {
@@ -174,13 +177,15 @@ class SyncrotronService {
 	}
 
 	public function receiveChangeset($changes, $deletes, $rels) {
-		$changes = $changes ? Convert::json2obj($changes) : array();
-		$deletes = $deletes ? Convert::json2obj($deletes) : array();
-		$rels = $rels ? Convert::json2obj($rels) : array();
+//		$changes = $changes ? Convert::json2obj($changes) : array();
+//		$deletes = $deletes ? Convert::json2obj($deletes) : array();
+//		$rels = $rels ? Convert::json2obj($rels) : array();
 		
 		if ($changes) {
 			$all = array_merge($changes, $deletes, $rels);
-			$this->processUpdateData($all);
+			$obj = Convert::array2json($all);
+			$obj = Convert::json2obj($obj);
+			$this->processUpdateData($obj);
 			return $all;
 		}
 
@@ -425,7 +430,16 @@ class SyncrotronService {
 		}
 
 		foreach ($props as $name) {
-			$properties[$name] = $item->$name;
+			// check for multivalue fields explicitly
+			$obj = $item->dbObject($name);
+			if ($obj instanceof MultiValueField) {
+				$v = $obj->getValues();
+				if (is_array($v)) {
+					$properties[$name] = $v;
+				}
+			} else {
+				$properties[$name] = $item->$name;
+			}
 		}
 		
 		// store owner as email address
@@ -481,6 +495,11 @@ class SyncrotronService {
 		foreach ($object as $prop => $val) {
 			if ($prop == 'has_one' || $prop == 'many_many') {
 				continue;
+			}
+			
+			if ($val instanceof stdClass) {
+				$obj = Convert::raw2json($val);
+				$val = Convert::json2array($obj);
 			}
 			$item->$prop = $val;
 		}
