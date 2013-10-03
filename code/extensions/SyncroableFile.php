@@ -15,6 +15,7 @@ class SyncroableFile extends DataExtension {
 	public function onSyncro($properties) {
 		if (isset($properties->RAW_FILE)) {
 			$path = $this->owner->getFullPath();
+			Filesystem::makeFolder(dirname($path));
 			file_put_contents($path, base64_decode($properties->RAW_FILE));
 		}
 	}
