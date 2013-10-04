@@ -54,6 +54,18 @@ class SyncroableExtension extends DataExtension {
 		}
 	}
 
+	public function updateCMSFields(FieldList $fields) {
+
+		// Remove the syncrotron fields so they may not be manually changed.
+
+		$fields->removeByName('MasterNode');
+		$fields->removeByName('ContentID');
+		$fields->removeByName('CreatedUTC');
+		$fields->removeByName('LastEditedUTC');
+		$fields->removeByName('UpdatedUTC');
+		$fields->removeByName('OriginalID');
+	}
+
 	public function updateFrontendFields(FieldList $fields) {
 		$fields->removeByName('MasterNode');
 		$fields->removeByName('ContentID');
