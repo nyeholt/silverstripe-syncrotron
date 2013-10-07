@@ -166,12 +166,12 @@ class SyncrotronService {
 				if ($body) {
 					$this->log->logError($body);
 				}
-				throw new Exception("Failed deploying to $url: " . $response->getStatusCode());
+				return array(false, "Deployment failed to {$url}: status {$response->getStatusCode()}");
 			}
 
 			$body = $response->getBody();
 			if ($body) {
-				
+				return array(true, 'Deployment successful');
 			}
 		}
 	}
