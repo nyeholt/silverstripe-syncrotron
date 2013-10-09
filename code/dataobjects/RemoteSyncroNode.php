@@ -22,4 +22,14 @@ class RemoteSyncroNode extends DataObject {
 	public static $searchable_fields = array(
 		'NodeURL',
 	);
+
+	public function requireDefaultRecords() {
+		parent::requireDefaultRecords();
+
+		// Make sure the syncrotron identifier is initially set.
+
+		$configuration = SiteConfig::current_site_config();
+		$configuration->getSyncroIdentifier();
+	}
+
 }

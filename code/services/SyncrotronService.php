@@ -166,12 +166,12 @@ class SyncrotronService {
 				if ($body) {
 					$this->log->logError($body);
 				}
-				throw new Exception("Failed deploying to $url: " . $response->getStatusCode());
+				return array(false, "Deployment failed to {$url}: status {$response->getStatusCode()}");
 			}
 
 			$body = $response->getBody();
 			if ($body) {
-				
+				return array(true, 'Deployment successful');
 			}
 		}
 	}
@@ -465,15 +465,16 @@ class SyncrotronService {
 		if (!$manies) {
 			$manies = Config::inst()->get(get_class($item), 'many_many');
 		}
-
-		foreach ($manies as $name => $type) {
-			$rel = $item->getManyManyComponents($name);
-			$many_many[$name] = array();
-			foreach ($rel as $object) {
-				if ($object && $object->exists() && $object->hasExtension('SyncroableExtension')) {
-					$many_many[$name][] = array('ContentID' => $object->ContentID, 'Type' => $type);
+		if ($manies) {
+			foreach ($manies as $name => $type) {
+				$rel = $item->getManyManyComponents($name);
+				$many_many[$name] = array();
+				foreach ($rel as $object) {
+					if ($object && $object->exists() && $object->hasExtension('SyncroableExtension')) {
+						$many_many[$name][] = array('ContentID' => $object->ContentID, 'Type' => $type);
+					}
 				}
-			}
+			}	
 		}
 
 		$properties['many_many'] = $many_many;
