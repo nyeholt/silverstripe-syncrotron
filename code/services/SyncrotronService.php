@@ -54,6 +54,8 @@ class SyncrotronService {
 	 */
 	public $createMembers = true;
 	
+	public $syncListTypes = array('Page', 'File');
+	
 	/**
 	 * Logger 
 	 * @var klogger 
@@ -206,9 +208,7 @@ class SyncrotronService {
 			throw new Exception("Invalid date");
 		}
 
-		$since = Convert::raw2sql($since);
-		$system = Convert::raw2sql($system);
-		$typesToSync = ClassInfo::implementorsOf('Syncroable');
+		$typesToSync = $this->syncListTypes;
 		
 		if (count($typesToSync) == 1 && $typesToSync[0] == 'SyncroTestObject') {
 			$typesToSync = array('Page', 'File');
@@ -220,15 +220,19 @@ class SyncrotronService {
 		// we only get objects edited SINCE a certain time
 		// and that didn't originate in the remote server
 
-		$filter = '"' . Convert::raw2sql($this->filterDate) .'" >= \'' . $since . '\' AND "MasterNode" <> \''. $system .'\'';
+		$filter = array(
+			"$this->filterDate:GreaterThan"		=> $since,
+			'MasterNode:not'					=> $system,
+		);
 
 		$allUpdates = array();
 		foreach ($typesToSync as $type) {
 			if ($type == 'SyncroTestObject') {
 				continue;
 			}
-			$objects = $this->dataService->getAll($type, $filter, '"LastEditedUTC" ASC', "", "", $requiredPerm);
-			if ($objects && $objects->count()) {
+			$objects = RestrictedList::create($type)->filter($filter)->sort('LastEditedUTC', 'ASC')->requirePerm($requiredPerm);
+//			$objects = $this->dataService->getAll($type, $filter, '"LastEditedUTC" ASC', "", "", $requiredPerm);
+			if ($objects) {
 				foreach ($objects as $object) {
 					if ($object->hasMethod('forSyncro')) {
 						$toSync = $object->forSyncro();
@@ -250,8 +254,10 @@ class SyncrotronService {
 			}
 		}
 
-		$deletes = DataObject::get('SyncroDelete', '"Deleted" >= \'' . $since . '\'');
-		if ($deletes && $deletes->count()) {
+		$deletes = SyncroDelete::get()->filter(array('Deleted:GreaterThan' => $since));
+		
+//		$deletes = DataObject::get('SyncroDelete', '"Deleted" >= \'' . $since . '\'');
+		if ($deletes) {
 			foreach ($deletes as $del) {
 				$del = array(
 					'SYNCRODELETE'	=> 'DELETE',
@@ -265,7 +271,7 @@ class SyncrotronService {
 
 		return $allUpdates;
 	}
-	
+
 	/**
 	 * Get updates from the remote systems 
 	 */
