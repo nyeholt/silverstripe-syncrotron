@@ -75,6 +75,15 @@ class SyncroableExtension extends DataExtension {
 
 	public function onAfterDelete() {
 		parent::onAfterDelete();
+		// an actual delete vs draft delete
+		if (!$this->owner->hasExtension('Versioned')) {
+			if ($this->owner->MasterNode == SiteConfig::current_site_config()->SystemID) {
+				SyncroDelete::record_delete($this->owner);
+			}
+		}
+	}
+	
+	public function onAfterUnpublish() {
 		if ($this->owner->MasterNode == SiteConfig::current_site_config()->SystemID) {
 			SyncroDelete::record_delete($this->owner);
 		}

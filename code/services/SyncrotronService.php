@@ -119,6 +119,7 @@ class SyncrotronService {
 					'ContentID'		=> $record->ContentID,
 					'Type'			=> $record->Type,
 					'MasterNode'	=> SiteConfig::current_site_config()->SystemID,
+					'Deleted'		=> $record->Created,
 				);
 				$update['deletes'][] = $del;
 			} else {
@@ -264,6 +265,7 @@ class SyncrotronService {
 					'ContentID'		=> $del->ContentID,
 					'Type'			=> $del->Type,
 					'MasterNode'	=> SiteConfig::current_site_config()->SystemID,
+					'Deleted'		=> $del->Created,
 				);
 				$allUpdates[] = $del;
 			}

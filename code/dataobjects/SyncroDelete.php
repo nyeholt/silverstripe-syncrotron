@@ -12,9 +12,10 @@ class SyncroDelete extends DataObject {
 		'ContentID'			=> 'Varchar(128)',
 		'Type'				=> 'Varchar(128)',
 		'Deleted'			=> 'SS_Datetime',
+		'DeleteType'		=> 'Varchar(128)',		// unpublish vs real delete
 	);
 	
-	public static function record_delete($object) {
+	public static function record_delete($object, $type = 'delete') {
 		$delete = new SyncroDelete();
 		$delete->ContentID = $object->ContentID;
 		$delete->Type = $object->ClassName;
