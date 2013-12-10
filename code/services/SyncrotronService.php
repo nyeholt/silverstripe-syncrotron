@@ -13,10 +13,6 @@ class SyncrotronService {
 	
 	const PUSH_URL = '/jsonservice/Syncrotron/receiveChangeset';
 	
-	public static $dependencies = array(
-		'dataService'		=> '%$DataService',
-	);
-	
 	/**
 	 * Do we require strict permission checking? 
 	 * 
@@ -42,11 +38,6 @@ class SyncrotronService {
 	 */
 	private $filterDate = 'LastEditedUTC';
 
-	/**
-	 * @var DataService
-	 */
-	public $dataService;
-	
 	/**
 	 * Do we create new members who own data in the remote system but don't exist in this system yet? 
 	 * 
@@ -280,7 +271,7 @@ class SyncrotronService {
 	public function getUpdates() {
 		$config = SiteConfig::current_site_config();
 		$systemId = $config->getSyncroIdentifier();
-		$nodes = $this->dataService->getAll('RemoteSyncroNode');
+		$nodes = RestrictedList::create('RemoteSyncroNode')->requirePerm('View');
 		foreach ($nodes as $node) {
 			$url = $node->NodeURL .'/' . self::SERVICE_URL;
 			$lastSync = $node->LastSync ? $node->LastSync : '2012-01-01 00:00:00';
