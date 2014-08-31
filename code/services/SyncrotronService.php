@@ -9,7 +9,7 @@
  */
 class SyncrotronService {
 	
-	const SERVICE_URL = 'jsonservice/Syncrotron/listUpdates';
+	const SERVICE_URL = '/jsonservice/Syncrotron/listUpdates';
 	
 	const PUSH_URL = '/jsonservice/Syncrotron/receiveChangeset';
 	
@@ -196,6 +196,7 @@ class SyncrotronService {
 	 * 
 	 */
 	public function listUpdates($since, $system) {
+		$since = gmdate('Y-m-d H:i:s', strtotime($since));
 		if (!preg_match('/\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d/', $since)) {
 			throw new Exception("Invalid date");
 		}
@@ -273,7 +274,7 @@ class SyncrotronService {
 		$systemId = $config->getSyncroIdentifier();
 		$nodes = RestrictedList::create('RemoteSyncroNode')->requirePerm('View');
 		foreach ($nodes as $node) {
-			$url = $node->NodeURL .'/' . self::SERVICE_URL;
+			$url = $node->NodeURL . self::SERVICE_URL;
 			$lastSync = $node->LastSync ? $node->LastSync : '2012-01-01 00:00:00';
 
 			$params = array(
