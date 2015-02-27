@@ -171,6 +171,7 @@ class SyncrotronService {
 	}
 
 	public function receiveChangeset($changes, $deletes, $rels) {
+		Versioned::reading_stage('Stage');
 //		$changes = $changes ? Convert::json2obj($changes) : array();
 //		$deletes = $deletes ? Convert::json2obj($deletes) : array();
 //		$rels = $rels ? Convert::json2obj($rels) : array();
