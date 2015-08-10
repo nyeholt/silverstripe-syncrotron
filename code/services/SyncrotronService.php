@@ -282,10 +282,10 @@ class SyncrotronService {
 				'token'			=> $node->APIToken,
 				'since'			=> $lastSync,
 				'system'		=> $systemId,
-				'rand'			=> mt_rand(0, 22)
+				'rand'			=> date('Y-m-d-H-i')
 			);
 
-			$svc = new RestfulService($url);
+			$svc = new RestfulService($url, -1);
 			$svc->setQueryString($params);
 			$response = $svc->request();
 			if ($response->isError()) {
