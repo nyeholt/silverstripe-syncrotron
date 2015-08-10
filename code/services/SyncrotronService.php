@@ -220,11 +220,12 @@ class SyncrotronService {
 		);
 
 		$allUpdates = array();
+		$rels = array();
 		foreach ($typesToSync as $type) {
 			if ($type == 'SyncroTestObject') {
 				continue;
 			}
-			$objects = RestrictedList::create($type)->filter($filter)->sort('LastEditedUTC', 'ASC')->requirePerm($requiredPerm);
+			$objects = DataList::create($type)->filter($filter)->sort('LastEditedUTC', 'ASC')->limit(500)->restrict($requiredPerm);
 //			$objects = $this->dataService->getAll($type, $filter, '"LastEditedUTC" ASC', "", "", $requiredPerm);
 			if ($objects) {
 				foreach ($objects as $object) {
@@ -242,6 +243,24 @@ class SyncrotronService {
 					$toSync['LastEditedUTC']	= $object->LastEditedUTC;
 					$toSync['CreatedUTC']		= $object->CreatedUTC;
 					$toSync['OriginalID']		= $object->OriginalID;
+					
+					if (isset($toSync['has_one']) || isset($toSync['many_many'])) {
+						$relInfo = new stdClass();
+						$relInfo->SYNCROREL = true;
+						$relInfo->Type = $object->ClassName;
+						$relInfo->ContentID = $object->ContentID;
+						$relInfo->MasterNode = SiteConfig::current_site_config()->SystemID;
+						if (isset($toSync['has_one']) && count($toSync['has_one'])) {
+							$relInfo->has_one = $toSync['has_one'];
+							unset($toSync['has_one']);
+						}
+						if (isset($toSync['many_many']) && count($toSync['many_many'])) {
+							$relInfo->many_many = $toSync['many_many'];
+							unset($toSync['many_many']);
+						}
+
+						$rels[] = $relInfo;
+					}
 					
 					$allUpdates[] = $toSync;
 				}
@@ -262,6 +281,10 @@ class SyncrotronService {
 				);
 				$allUpdates[] = $del;
 			}
+		}
+		
+		foreach ($rels as $relation) {
+			$allUpdates[] = $relation;
 		}
 
 		return $allUpdates;
@@ -323,7 +346,7 @@ class SyncrotronService {
 			} else {
 				$this->log->logInfo("Sync'd $item->ContentID");
 			}
-			if (isset($item->LastEditedUTC) && isset($item->UpdatedUTC)) {
+			if (isset($item->LastEditedUTC) || isset($item->UpdatedUTC)) {
 				if ($item->LastEditedUTC || $item->UpdatedUTC) {
 					$timeInt = strtotime($item->LastEditedUTC);
 					if ($timeInt > $updateTime) {
@@ -455,7 +478,7 @@ class SyncrotronService {
 		foreach ($hasOne as $name => $type) {
 			// get the object
 			$object = $item->getComponent($name);
-			if ($object && $object->exists() && $object->hasExtension('SyncroableExtension')) {
+			if ($object && $object->exists() && $object->hasExtension('SyncroableExtension') && $object->ContentID) {
 				$has_ones[$name] = array('ContentID' => $object->ContentID, 'Type' => $type);
 			}
 		}
