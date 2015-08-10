@@ -6,7 +6,7 @@
  */
 class RemoteSyncroNode extends DataObject {
 	
-	public static $db = array(
+	private static $db = array(
 		'Title'					=> 'Varchar(64)',
 		'RemoteNodeID'			=> 'Varchar(128)',
 		'NodeURL'				=> 'Varchar(128)',
@@ -14,13 +14,17 @@ class RemoteSyncroNode extends DataObject {
 		'LastSync'				=> 'SS_Datetime',
 	);
 
-	public static $summary_fields = array(
+	private static $summary_fields = array(
 		'NodeURL',
 		'LastSync',
 	);
 	
-	public static $searchable_fields = array(
+	private static $searchable_fields = array(
 		'NodeURL',
+	);
+	
+	private static $extensions = array(
+		'Restrictable',
 	);
 
 	public function requireDefaultRecords() {
