@@ -12,6 +12,7 @@ class RemoteSyncroNode extends DataObject {
 		'NodeURL'				=> 'Varchar(128)',
 		'APIToken'				=> 'Varchar(128)',
 		'LastSync'				=> 'SS_Datetime',
+		'Enabled'				=> 'Boolean',
 	);
 
 	private static $summary_fields = array(

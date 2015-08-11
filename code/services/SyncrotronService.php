@@ -296,7 +296,7 @@ class SyncrotronService {
 	public function getUpdates() {
 		$config = SiteConfig::current_site_config();
 		$systemId = $config->getSyncroIdentifier();
-		$nodes = RestrictedList::create('RemoteSyncroNode')->requirePerm('View');
+		$nodes = RestrictedList::create('RemoteSyncroNode')->filter('Enabled', 1)->requirePerm('View');
 		foreach ($nodes as $node) {
 			$url = $node->NodeURL . self::SERVICE_URL;
 			$lastSync = $node->LastSync ? $node->LastSync : '2012-01-01 00:00:00';
