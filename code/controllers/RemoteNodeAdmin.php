@@ -7,11 +7,12 @@
  */
 class RemoteNodeAdmin extends ModelAdmin {
 	
-	public static $managed_models = array(
+	private static $managed_models = array(
 		'RemoteSyncroNode',
+		'SyncroData',
 	);
 	
-	public static $menu_title = 'Syncro Nodes';
-	public static $url_segment = 'syncrotron';
+	private static $menu_title = 'Syncro Nodes';
+	private static $url_segment = 'syncrotron';
 	
 }

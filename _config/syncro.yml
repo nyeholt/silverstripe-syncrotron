@@ -1,0 +1,7 @@
+---
+Name: syncrotron_config
+---
+Injector:
+  SyncroData:
+    properties:
+      syncrotronService: %$SyncrotronService
