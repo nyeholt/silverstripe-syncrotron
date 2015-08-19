@@ -196,9 +196,13 @@ class SyncrotronService {
 	 *				The list of data objects that have been created/changed since 
 	 * 
 	 */
-	public function listUpdates($since, $system) {
+	public function listUpdates($since, $system, $until = null) {
+		$dateFormat = '/\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d/';
 		$since = gmdate('Y-m-d H:i:s', strtotime($since));
-		if (!preg_match('/\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d/', $since)) {
+		if ($until) {
+			$until = gmdate('Y-m-d H:i:s', strtotime($until));
+		}
+		if (!preg_match($dateFormat, $since)) {
 			throw new Exception("Invalid date");
 		}
 
@@ -218,6 +222,9 @@ class SyncrotronService {
 			"$this->filterDate:GreaterThan"		=> $since,
 			'MasterNode:not'					=> $system,
 		);
+		if ($until) {
+			$filter["$this->filterDate:LessThan"] = $until;
+		}
 
 		$allUpdates = array();
 		$rels = array();
@@ -332,12 +339,12 @@ class SyncrotronService {
 	}
 
 	/**
-	 * Process an array of 
+	 * Process an array of update information
 	 * 
 	 * @param array $data
 	 * @param RemoteSyncroNode $node
 	 */
-	protected function processUpdateData($data, $node = null) {
+	public function processUpdateData($data, $node = null) {
 		$updateTime = null;
 		foreach ($data as $item) {
 			$this->processUpdatedObject($item);
