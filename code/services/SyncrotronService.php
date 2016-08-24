@@ -300,10 +300,14 @@ class SyncrotronService {
 	/**
 	 * Get updates from the remote systems 
 	 */
-	public function getUpdates() {
+	public function getUpdates($fromNode = null) {
 		$config = SiteConfig::current_site_config();
 		$systemId = $config->getSyncroIdentifier();
-		$nodes = RestrictedList::create('RemoteSyncroNode')->filter('Enabled', 1)->requirePerm('View');
+        $filter = array('Enabled' => 1);
+        if ($fromNode) {
+            $filter = array('ID' => $fromNode);
+        }
+		$nodes = RestrictedList::create('RemoteSyncroNode')->filter($filter)->requirePerm('View');
 		foreach ($nodes as $node) {
 			$url = $node->NodeURL . self::SERVICE_URL;
 			$lastSync = $node->LastSync ? $node->LastSync : '2012-01-01 00:00:00';
