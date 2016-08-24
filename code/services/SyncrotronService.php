@@ -45,7 +45,7 @@ class SyncrotronService {
 	 */
 	public $createMembers = true;
 	
-	public $syncListTypes = array('Page', 'File');
+	public $syncListTypes = array();
 	
 	/**
 	 * Logger 
