@@ -3,19 +3,12 @@
 /**
  * Add this extension to items that you want to allow other nodes to sync down
  * 
- * You will probably want to 
- * 
- * ALTER TABLE `DataObjectThisIsAppliedTo` ADD INDEX ( `LastEditedUTC` ) ;
- * ALTER TABLE `DataObjectThisIsAppliedTo` ADD INDEX ( `UpdatedUTC` ) ;
- * 
- * depending on whether you're doing UpdatedUTC updates or LastEditedUTC updates
- *
  * @author marcus@silverstripe.com.au
  * @license BSD License http://silverstripe.org/bsd-license/
  */
 class SyncroableExtension extends DataExtension {
 
-	public static $db = array(
+	private static $db = array(
 		'MasterNode'				=> 'Varchar(128)',
 		'ContentID'					=> 'Varchar(128)',
 		'CreatedUTC'				=> 'SS_Datetime',			// create time on master node
@@ -23,6 +16,10 @@ class SyncroableExtension extends DataExtension {
 		'UpdatedUTC'				=> 'SS_Datetime',			// utc last edited time on any node
 		'OriginalID'				=> 'Int',
 	);
+    
+    private static $indexes = array(
+        'LastEditedUTC', 'UpdatedUTC', 'ContentID', 'MasterNode',
+    );
 
 	public function onBeforeWrite() {
 		$config = SiteConfig::current_site_config();
