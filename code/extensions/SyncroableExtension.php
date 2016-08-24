@@ -61,6 +61,13 @@ class SyncroableExtension extends DataExtension {
 		$fields->removeByName('LastEditedUTC');
 		$fields->removeByName('UpdatedUTC');
 		$fields->removeByName('OriginalID');
+        
+        if ($this->owner->MasterNode != SiteConfig::current_site_config()->SystemID) {
+            $source = LiteralField::create('syncromessage', '<p class="message good">' . _t('Syncrotron.OTHER_SOURCE', 'This item is syncronised from '  . $this->owner->MasterNode) . '</p>');
+        } else {
+//            $source = LiteralField::create('syncromessage', '<p class="message good">' . _t('Syncrotron.ME_AS_SOURCE', 'This item originated in this system '  . SiteConfig::current_site_config()->SystemID) . '</p>');
+        }
+        $fields->addFieldToTab('Root.Main', $source);
 	}
 
 	public function updateFrontendFields(FieldList $fields) {

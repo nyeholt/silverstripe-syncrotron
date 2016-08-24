@@ -42,12 +42,14 @@ class RemoteNodeDetailForm_ItemRequest extends GridFieldDetailForm_ItemRequest {
         return $form;
     }
     
-    public function syncnow($data, $form) {
+    public function syncnow($data, Form $form) {
         $record = $this->getRecord();
         if ($record) {
             singleton('SyncrotronService')->getUpdates($record->ID);
         }
         
         $form->sessionMessage('Sync complete', 'good');
+        
+        return $this->getToplevelController()->redirectBack();
     }
 }
