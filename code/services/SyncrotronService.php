@@ -482,13 +482,15 @@ class SyncrotronService {
 		if (!$hasOne) {
 			$hasOne = Config::inst()->get(get_class($item), 'has_one');
 		}
-		foreach ($hasOne as $name => $type) {
-			// get the object
-			$object = $item->getComponent($name);
-			if ($object && $object->exists() && $object->hasExtension('SyncroableExtension') && $object->ContentID) {
-				$has_ones[$name] = array('ContentID' => $object->ContentID, 'Type' => $type);
-			}
-		}
+        if ($hasOne) {
+            foreach ($hasOne as $name => $type) {
+                // get the object
+                $object = $item->getComponent($name);
+                if ($object && $object->exists() && $object->hasExtension('SyncroableExtension') && $object->ContentID) {
+                    $has_ones[$name] = array('ContentID' => $object->ContentID, 'Type' => $type);
+                }
+            }
+        }
 
 		$properties['has_one'] = $has_ones;
 		
