@@ -18,7 +18,10 @@ class SyncroableExtension extends DataExtension {
 	);
     
     private static $indexes = array(
-        'LastEditedUTC', 'UpdatedUTC', 'ContentID', 'MasterNode',
+        'LastEditedUTC' => true,
+        'UpdatedUTC' => true, 
+        'ContentID' => true, 
+        'MasterNode' => true,
     );
 
 	public function onBeforeWrite() {
