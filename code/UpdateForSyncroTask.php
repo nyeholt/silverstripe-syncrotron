@@ -9,6 +9,8 @@ class UpdateForSyncroTask extends BuildTask {
 	public function run($request) {
 		// get all sync objects and make sure they have a contentID
 		$typesToSync = ClassInfo::implementorsOf('Syncroable');
+        $svcTypes = singleton('SyncrotronService')->syncListTypes;
+        $typesToSync = array_merge($typesToSync, $svcTypes);
 		foreach ($typesToSync as $type) {
 			if ($type == 'SyncroTestObject') {
 				continue;
